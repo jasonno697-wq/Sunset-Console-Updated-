@@ -275,17 +275,7 @@ export default function App() {
       window.URL.revokeObjectURL(url);
       addLog('success', 'System manifest HTML download started.');
       addToast('success', 'Download started: sunset-master-system.html');
-      await fetch('/api/database/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: 'sunset-master-system.html',
-          size: `${Math.max(1, Math.round(blob.size / 1024))}KB`,
-          status: 'Completed',
-          malware_check: 'Internal Export'
-        })
-      });
-      fetchDatabase();
+
     } catch (error) {
       addLog('error', 'Failed to prepare HTML download. Trying direct link fallback...');
       const link = document.createElement('a');
@@ -294,18 +284,7 @@ export default function App() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      await fetch('/api/database/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: 'sunset-master-system.html',
-          size: 'Unknown',
-          status: 'Fallback Triggered',
-          malware_check: 'Internal Export'
-        })
-      });
-      fetchDatabase();
-    }
+
   };
 
   const handleCommand = async (cmd: string) => {
