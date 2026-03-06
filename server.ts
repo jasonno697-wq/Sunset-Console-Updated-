@@ -97,6 +97,27 @@ async function startServer() {
     res.json({ id: info.lastInsertRowid });
   });
 
+  const assembleChromebookHtml = () => {
+    try {
+      const template = fs.readFileSync(path.join(__dirname, "chromebook/index.html"), "utf-8");
+      const css = fs.readFileSync(path.join(__dirname, "chromebook/css/styles.css"), "utf-8");
+      const matrixJs = fs.readFileSync(path.join(__dirname, "chromebook/js/matrix.js"), "utf-8");
+      const detectionJs = fs.readFileSync(path.join(__dirname, "chromebook/js/detection.js"), "utf-8");
+      const downloadJs = fs.readFileSync(path.join(__dirname, "chromebook/js/download.js"), "utf-8");
+      const manifestJs = fs.readFileSync(path.join(__dirname, "chromebook/js/manifest.js"), "utf-8");
+
+      return template
+        .replace("/* BUNDLED_CSS */", css)
+        .replace("/* BUNDLED_JS_MATRIX */", matrixJs)
+        .replace("/* BUNDLED_JS_DETECTION */", detectionJs)
+        .replace("/* BUNDLED_JS_DOWNLOAD */", downloadJs)
+        .replace("/* BUNDLED_JS_MANIFEST */", manifestJs);
+    } catch (e) {
+      console.error("Failed to assemble Chromebook HTML", e);
+      return "Error assembling system access page.";
+    }
+  };
+
   const generateManifestHtml = () => {
     const snippets = db.prepare("SELECT * FROM code_snippets").all();
     const downloads = db.prepare("SELECT * FROM downloads").all();
@@ -118,7 +139,7 @@ async function startServer() {
       packageJson = fs.readFileSync(path.join(__dirname, "package.json"), "utf-8");
       viteConfig = fs.readFileSync(path.join(__dirname, "vite.config.ts"), "utf-8");
       indexHtml = fs.readFileSync(path.join(__dirname, "index.html"), "utf-8");
-      index24Html = fs.readFileSync(path.join(__dirname, "index24.html"), "utf-8");
+      index24Html = assembleChromebookHtml();
       mainTsx = fs.readFileSync(path.join(__dirname, "src/main.tsx"), "utf-8");
       indexCss = fs.readFileSync(path.join(__dirname, "src/index.css"), "utf-8");
     } catch (e) {
@@ -278,26 +299,26 @@ async function startServer() {
     res.send(generateManifestHtml());
   });
 
-  // index24.html Route - Injects manifest data
+  // chromebook/index.html Route - Injects manifest data
+  app.get("/chromebook/index.html", (req, res) => {
+    let content = assembleChromebookHtml();
+    const manifestHtml = generateManifestHtml();
+    
+    // Inject the manifest as a hidden data attribute or a script variable
+    // This allows the "Download System" button to work offline by creating a blob
+    const escapedManifest = Buffer.from(manifestHtml).toString('base64');
+    
+    content = content.replace(
+      '</body>',
+      `<script>window.__SYSTEM_MANIFEST__ = "${escapedManifest}";</script></body>`
+    );
+    
+    res.send(content);
+  });
+
+  // Redirect old index24.html to new location
   app.get("/index24.html", (req, res) => {
-    const filePath = path.join(__dirname, "index24.html");
-    if (fs.existsSync(filePath)) {
-      let content = fs.readFileSync(filePath, "utf-8");
-      const manifestHtml = generateManifestHtml();
-      
-      // Inject the manifest as a hidden data attribute or a script variable
-      // This allows the "Download System" button to work offline by creating a blob
-      const escapedManifest = Buffer.from(manifestHtml).toString('base64');
-      
-      content = content.replace(
-        '</body>',
-        `<script>window.__SYSTEM_MANIFEST__ = "${escapedManifest}";</script></body>`
-      );
-      
-      res.send(content);
-    } else {
-      res.status(404).send("index24.html not found");
-    }
+    res.redirect("/chromebook/index.html");
   });
 
   // public/publicdownload.html Route - Forces Download

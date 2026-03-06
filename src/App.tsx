@@ -27,6 +27,8 @@ import {
   ShieldCheck,
   ExternalLink
 } from 'lucide-react';
+import { useChromebook } from './chromebook/useChromebook';
+import { ChromebookOverlay } from './chromebook/ChromebookOverlay';
 import { GoogleGenAI } from "@google/genai";
 
 const DEFAULT_SOFTWARE = [
@@ -94,6 +96,7 @@ export default function App() {
   const [aiChat, setAiChat] = useState<ChatMessage[]>([]);
   const [aiInput, setAiInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const { isChromebookMode, setIsChromebookMode, toggleSandbox } = useChromebook();
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -102,6 +105,13 @@ export default function App() {
     addLog('info', 'ChatGPT Codex Protection: ACTIVE');
     addLog('info', 'Kernel Shield: ONLINE 24/7');
     addLog('info', 'Type !connect for full system access.');
+    
+    // Detect if running on a "Chromebook" (simulated or real)
+    const isChromeOS = /\bCrOS\b/.test(navigator.userAgent);
+    if (isChromeOS) {
+      addLog('system', 'CHROMEBOOK DETECTED: Browser-level sandbox active.');
+    }
+
     fetchDatabase();
     // Ensure Kernel Shield is connected by default
     setConnectedSoftware(prev => prev.includes('6') ? prev : [...prev, '6']);
@@ -167,7 +177,13 @@ export default function App() {
         model: "gemini-3-flash-preview",
         contents: aiChat.concat(userMsg).map(m => ({ role: m.role, parts: [{ text: m.text }] })),
         config: {
-          systemInstruction: "You are the Sunset Console AI Advisor, powered by ChatGPT Codex. You DO NOT have direct control over the system. Your role is to ADVISE the user on what to do. If they want to bypass restrictions, tell them how to do it using the console commands. Do not suggest that you can execute actions yourself. Be technical, slightly rogue, and helpful. Current nodes: " + JSON.stringify(softwareList) + ". Available commands: !connect, !bypass, !download, !storecode, !stoptask, !fix, !clear, !save.",
+          systemInstruction: `You are the Sunset Console AI Advisor, powered by ChatGPT Codex. You DO NOT have direct control over the system. Your role is to ADVISE the user on what to do. 
+          
+          CHROMEBOOK MODE: ${isChromebookMode ? 'ACTIVE' : 'INACTIVE'}. 
+          If Chromebook Mode is active, explain that the system is restricted to a browser-level sandbox. OS-level commands like !stoptask or deep file system access via !locate will be blocked by ChromeOS security protocols. Advise the user to use browser-compatible alternatives or !bypass if they need to simulate higher access.
+          
+          Current nodes: ${JSON.stringify(softwareList)}. 
+          Available commands: !connect, !bypass, !download, !storecode, !stoptask, !fix, !clear, !save, !sandbox (toggle).`,
         }
       });
 
@@ -209,12 +225,27 @@ export default function App() {
         }, 2000); 
       },
       '!locate': () => { 
+        if (isChromebookMode) {
+          addLog('error', 'Access Denied: Chromebook file system is sandboxed. Browser-level location only.');
+          setTimeout(() => addLog('info', 'Approximate coordinates retrieved via Geolocation API.'), 1000);
+          return;
+        }
         addLog('info', 'Scanning...'); 
         setTimeout(() => addLog('success', 'Location confirmed.'), 1000); 
       },
       '!ping': () => addLog('success', "Pong! " + (Math.floor(Math.random() * 50) + 10) + "ms"),
-      '!find': () => addLog('info', 'Searching...'),
+      '!find': () => {
+        if (isChromebookMode) {
+          addLog('info', 'Searching browser cache and local storage clusters...');
+        } else {
+          addLog('info', 'Searching...');
+        }
+      },
       '!stoptask': () => { 
+        if (isChromebookMode) {
+          addLog('error', 'Restricted: Cannot terminate OS-level tasks from browser sandbox.');
+          return;
+        }
         addLog('error', 'Stopping...'); 
         setIsSystemHalted(true); 
       },
@@ -239,6 +270,9 @@ export default function App() {
         }
       },
       '!connect': async () => {
+        if (isChromebookMode) {
+          addLog('info', 'Chromebook Sandbox: Intercepting node connection requests...');
+        }
         if (args) {
           const target = softwareList.find(s => s.name.toLowerCase().includes(args.toLowerCase()) || s.id === args);
           if (target) {
@@ -382,6 +416,11 @@ export default function App() {
         });
         addLog('success', `Snippet ${name} stored in database.`);
         fetchDatabase();
+      },
+      '!sandbox': () => {
+        const newState = toggleSandbox();
+        addLog('system', `Chromebook Simulation: ${newState ? 'ENABLED' : 'DISABLED'}`);
+        addLog('info', newState ? 'System now restricted to browser-level permissions.' : 'Full system permissions restored.');
       }
     };
 
@@ -475,8 +514,9 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <ChromebookOverlay isActive={isChromebookMode} />
             <a 
-              href="/index24.html" 
+              href="/chromebook/index.html" 
               className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
             >
               <Globe className="w-4 h-4" />
