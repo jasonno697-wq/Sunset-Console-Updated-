@@ -64,6 +64,7 @@ const COMMANDS = [
   { cmd: '!bypassai', desc: 'Open AI-Powered Admin Console', icon: Bot },
   { cmd: '!download', desc: 'Download file with malware check', icon: Download },
   { cmd: '!downloadsystem', desc: 'Download the entire system source', icon: ShieldCheck },
+  { cmd: '!downloadhtml', desc: 'Download system manifest as HTML file', icon: Download },
   { cmd: '!storecode', desc: 'Store code snippet in database', icon: FileCode },
   { cmd: '!clear', desc: 'Clear console logs', icon: XCircle },
   { cmd: '!save', desc: 'Save current system version', icon: Lock },
@@ -94,8 +95,11 @@ interface ChatMessage {
 }
 
 export default function App() {
+  const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [softwareList, setSoftwareList] = useState<SoftwareItem[]>(DEFAULT_SOFTWARE.map(s => ({ ...s, category: s.type as any })));
   const [connectedSoftware, setConnectedSoftware] = useState<string[]>([]);
@@ -126,6 +130,22 @@ export default function App() {
     setToasts(prev => [...prev, { id, type, message }]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
   };
+
+  const getAiClient = () => {
+    if (!geminiApiKey) {
+      addLog('error', 'AI features unavailable: missing VITE_GEMINI_API_KEY.');
+      addToast('error', 'Missing VITE_GEMINI_API_KEY in your .env.local');
+      return null;
+    }
+
+    return new GoogleGenAI({ apiKey: geminiApiKey });
+  };
+
+  const commandSuggestions = useMemo(() => {
+    const normalized = inputValue.trim().toLowerCase();
+    if (!normalized.startsWith('!')) return [];
+    return COMMANDS.filter(c => c.cmd.startsWith(normalized)).slice(0, 6);
+  }, [inputValue]);
 
   useEffect(() => {
     addLog('system', 'Sunset Master System v3.0.0 Initialized...');
@@ -214,7 +234,8 @@ export default function App() {
     setIsAiThinking(true);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = getAiClient();
+      if (!ai) return;
       
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -238,13 +259,66 @@ export default function App() {
     }
   };
 
+  const downloadSystemHtml = async () => {
+    addLog('info', 'Preparing full system manifest for HTML download...');
+    try {
+      const response = await fetch('/public/publicdownload.html');
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'sunset-master-system.html';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      addLog('success', 'System manifest HTML download started.');
+      addToast('success', 'Download started: sunset-master-system.html');
+      await fetch('/api/database/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: 'sunset-master-system.html',
+          size: `${Math.max(1, Math.round(blob.size / 1024))}KB`,
+          status: 'Completed',
+          malware_check: 'Internal Export'
+        })
+      });
+      fetchDatabase();
+    } catch (error) {
+      addLog('error', 'Failed to prepare HTML download. Trying direct link fallback...');
+      const link = document.createElement('a');
+      link.href = '/public/publicdownload.html';
+      link.download = 'sunset-master-system.html';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      await fetch('/api/database/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: 'sunset-master-system.html',
+          size: 'Unknown',
+          status: 'Fallback Triggered',
+          malware_check: 'Internal Export'
+        })
+      });
+      fetchDatabase();
+    }
+  };
+
   const handleCommand = async (cmd: string) => {
     const parts = cmd.trim().split(' ');
     const cleanCmd = parts[0].toLowerCase();
     const args = parts.slice(1).join(' ');
 
     if (!cleanCmd) return;
-    
+
+    const normalizedCmd = cmd.trim();
+    setCommandHistory(prev => [normalizedCmd, ...prev.filter(entry => entry !== normalizedCmd)].slice(0, 40));
+    setHistoryIndex(null);
+
     addLog('command', "> " + cmd);
     
     if (isSystemHalted && cleanCmd !== '!fix') {
@@ -355,12 +429,14 @@ export default function App() {
 
           // AI Analysis of the scan
           try {
-            const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-            const analysis = await ai.models.generateContent({
-              model: "gemini-3-flash-preview",
-              contents: `Analyze these detected system nodes and provide a 1-sentence rogue hacker assessment: ${JSON.stringify(detected)}`,
-            });
-            addLog('ai', "AI Analysis: " + (analysis.text || "Scan complete. No anomalies detected."));
+            const ai = getAiClient();
+            if (ai) {
+              const analysis = await ai.models.generateContent({
+                model: "gemini-3-flash-preview",
+                contents: `Analyze these detected system nodes and provide a 1-sentence rogue hacker assessment: ${JSON.stringify(detected)}`,
+              });
+              addLog('ai', "AI Analysis: " + (analysis.text || "Scan complete. No anomalies detected."));
+            }
           } catch (e) {
             console.error("AI Analysis failed", e);
           }
@@ -413,30 +489,10 @@ export default function App() {
         }
       },
       '!downloadsystem': async () => {
-        addLog('info', 'Preparing full system manifest for download...');
-        try {
-          const response = await fetch('/public/publicdownload.html');
-          if (!response.ok) throw new Error('Network response was not ok');
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'sunset-master-system.html';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          addLog('success', 'Full system download triggered successfully.');
-        } catch (error) {
-          addLog('error', 'Failed to prepare system download. Server link may be restricted.');
-          // Fallback
-          const link = document.createElement('a');
-          link.href = '/public/publicdownload.html';
-          link.download = 'sunset-master-system.html';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
+        await downloadSystemHtml();
+      },
+      '!downloadhtml': async () => {
+        await downloadSystemHtml();
       },
       '!storecode': async () => {
         if (!args) {
@@ -536,12 +592,14 @@ export default function App() {
     } else {
       addLog('error', 'Unknown command.');
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        const help = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `The user typed an unknown command: "${cmd}". Suggest a valid Sunset Console command or explain why it failed in a rogue hacker tone. Available: ${COMMANDS.map(c => c.cmd).join(', ')}`,
-        });
-        if (help.text) addLog('ai', "AI Suggestion: " + help.text);
+        const ai = getAiClient();
+        if (ai) {
+          const help = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `The user typed an unknown command: "${cmd}". Suggest a valid Sunset Console command or explain why it failed in a rogue hacker tone. Available: ${COMMANDS.map(c => c.cmd).join(', ')}`,
+          });
+          if (help.text) addLog('ai', "AI Suggestion: " + help.text);
+        }
       } catch (e) {
         console.error("AI Help failed", e);
       }
@@ -726,6 +784,13 @@ export default function App() {
               <Globe className="w-4 h-4" />
               <span className="hidden sm:inline">System Manifest</span>
             </a>
+            <button
+              onClick={() => void downloadSystemHtml()}
+              className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Download HTML</span>
+            </button>
             <button 
               onClick={() => setIsMenuOpen(true)} 
               className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
@@ -831,8 +896,43 @@ export default function App() {
                 <input 
                   type="text" 
                   value={inputValue} 
-                  onChange={(e) => setInputValue(e.target.value)} 
-                  onKeyDown={(e) => e.key === 'Enter' && void handleCommand(inputValue)} 
+                  onChange={(e) => {
+                    setInputValue(e.target.value);
+                    setHistoryIndex(null);
+                  }} 
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      void handleCommand(inputValue);
+                      return;
+                    }
+
+                    if (e.key === 'ArrowUp' && commandHistory.length > 0) {
+                      e.preventDefault();
+                      const nextIndex = historyIndex === null
+                        ? 0
+                        : Math.min(historyIndex + 1, commandHistory.length - 1);
+                      setHistoryIndex(nextIndex);
+                      setInputValue(commandHistory[nextIndex]);
+                    }
+
+                    if (e.key === 'ArrowDown' && commandHistory.length > 0) {
+                      e.preventDefault();
+                      if (historyIndex === null) return;
+                      const nextIndex = historyIndex - 1;
+                      if (nextIndex < 0) {
+                        setHistoryIndex(null);
+                        setInputValue('');
+                        return;
+                      }
+                      setHistoryIndex(nextIndex);
+                      setInputValue(commandHistory[nextIndex]);
+                    }
+
+                    if (e.key === 'Tab' && commandSuggestions.length > 0) {
+                      e.preventDefault();
+                      setInputValue(commandSuggestions[0].cmd);
+                    }
+                  }} 
                   disabled={isSystemHalted} 
                   className={cn(
                     "w-full bg-white/5 border rounded-2xl py-4 pl-10 pr-4 text-white outline-none transition-all",
@@ -841,6 +941,25 @@ export default function App() {
                   placeholder="Type command..." 
                 />
               </div>
+              {commandSuggestions.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {commandSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.cmd}
+                      type="button"
+                      onClick={() => setInputValue(suggestion.cmd)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs rounded-xl border transition-all",
+                        isBypassActive
+                          ? 'bg-red-500/10 border-red-500/20 text-red-300 hover:border-red-400'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:border-orange-500/40 hover:text-orange-300'
+                      )}
+                    >
+                      {suggestion.cmd}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
