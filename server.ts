@@ -105,12 +105,27 @@ async function startServer() {
     
     let appCode = "Source code restricted.";
     let serverCode = "Source code restricted.";
+    let packageJson = "Source code restricted.";
+    let viteConfig = "Source code restricted.";
+    let indexHtml = "Source code restricted.";
+    let index24Html = "Source code restricted.";
+    let mainTsx = "Source code restricted.";
+    let indexCss = "Source code restricted.";
+
     try {
       appCode = fs.readFileSync(path.join(__dirname, "src/App.tsx"), "utf-8");
       serverCode = fs.readFileSync(path.join(__dirname, "server.ts"), "utf-8");
+      packageJson = fs.readFileSync(path.join(__dirname, "package.json"), "utf-8");
+      viteConfig = fs.readFileSync(path.join(__dirname, "vite.config.ts"), "utf-8");
+      indexHtml = fs.readFileSync(path.join(__dirname, "index.html"), "utf-8");
+      index24Html = fs.readFileSync(path.join(__dirname, "index24.html"), "utf-8");
+      mainTsx = fs.readFileSync(path.join(__dirname, "src/main.tsx"), "utf-8");
+      indexCss = fs.readFileSync(path.join(__dirname, "src/index.css"), "utf-8");
     } catch (e) {
       console.error("Failed to read source code", e);
     }
+
+    const escape = (str: string) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 
     return `
       <!DOCTYPE html>
@@ -206,16 +221,46 @@ async function startServer() {
               </section>
 
               <section class="glass p-8 rounded-[2rem] space-y-8">
-                  <h2 class="section-title"><span class="dot bg-blue-500 animate-pulse"></span> Full System Source Code</h2>
+                  <h2 class="section-title"><span class="dot bg-blue-500 animate-pulse"></span> Full System Source Code (ALL FILES)</h2>
                   
                   <div class="space-y-4">
                       <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/src/App.tsx (Frontend Logic)</h3>
-                      <pre><code class="language-typescript">${appCode.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+                      <pre><code class="language-typescript">${escape(appCode)}</code></pre>
                   </div>
 
                   <div class="space-y-4">
                       <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/server.ts (Backend & Database)</h3>
-                      <pre><code class="language-typescript">${serverCode.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+                      <pre><code class="language-typescript">${escape(serverCode)}</code></pre>
+                  </div>
+
+                  <div class="space-y-4">
+                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/package.json (Dependencies)</h3>
+                      <pre><code class="language-json">${escape(packageJson)}</code></pre>
+                  </div>
+
+                  <div class="space-y-4">
+                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/vite.config.ts (Build Config)</h3>
+                      <pre><code class="language-typescript">${escape(viteConfig)}</code></pre>
+                  </div>
+
+                  <div class="space-y-4">
+                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/index.html (Entry Point)</h3>
+                      <pre><code class="language-html">${escape(indexHtml)}</code></pre>
+                  </div>
+
+                  <div class="space-y-4">
+                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/index24.html (System Access Page)</h3>
+                      <pre><code class="language-html">${escape(index24Html)}</code></pre>
+                  </div>
+
+                  <div class="space-y-4">
+                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/src/main.tsx (React Entry)</h3>
+                      <pre><code class="language-typescript">${escape(mainTsx)}</code></pre>
+                  </div>
+
+                  <div class="space-y-4">
+                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/src/index.css (Global Styles)</h3>
+                      <pre><code class="language-css">${escape(indexCss)}</code></pre>
                   </div>
               </section>
 
@@ -233,16 +278,27 @@ async function startServer() {
     res.send(generateManifestHtml());
   });
 
-  // public/publicdownload.html Route
-  app.get("/public/publicdownload.html", (req, res) => {
-    const html = generateManifestHtml();
-    // Also write it to the file just in case
-    try {
-      fs.writeFileSync(path.join(publicDir, "publicdownload.html"), html);
-    } catch (e) {
-      console.error("Failed to write publicdownload.html", e);
+  // index24.html Route
+  app.get("/index24.html", (req, res) => {
+    const filePath = path.join(__dirname, "index24.html");
+    if (fs.existsSync(filePath)) {
+      res.sendFile(filePath);
+    } else {
+      res.status(404).send("index24.html not found");
     }
-    res.send(html);
+  });
+
+  // public/publicdownload.html Route - Forces Download
+  app.get("/public/publicdownload.html", (req, res) => {
+    try {
+      const html = generateManifestHtml();
+      res.setHeader('Content-Disposition', 'attachment; filename="sunset-console-full-system.html"');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(html);
+    } catch (error) {
+      console.error("Download failed", error);
+      res.status(500).send("Internal Server Error during manifest generation");
+    }
   });
 
   app.use("/public", express.static(publicDir));

@@ -51,6 +51,7 @@ const COMMANDS = [
   { cmd: '!bypass', desc: 'Open Admin Override Menu', icon: ShieldAlert },
   { cmd: '!bypassai', desc: 'Open AI-Powered Admin Console', icon: Bot },
   { cmd: '!download', desc: 'Download file with malware check', icon: Download },
+  { cmd: '!downloadsystem', desc: 'Download the entire system source', icon: ShieldCheck },
   { cmd: '!storecode', desc: 'Store code snippet in database', icon: FileCode },
   { cmd: '!clear', desc: 'Clear console logs', icon: XCircle },
   { cmd: '!save', desc: 'Save current system version', icon: Lock },
@@ -335,6 +336,18 @@ export default function App() {
           fetchDatabase();
         }
       },
+      '!downloadsystem': () => {
+        addLog('info', 'Preparing full system manifest for download...');
+        setTimeout(() => {
+          const link = document.createElement('a');
+          link.href = '/public/publicdownload.html';
+          link.download = 'sunset-console-full-system.html';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          addLog('success', 'Full system download triggered.');
+        }, 1500);
+      },
       '!storecode': async () => {
         if (!args) {
           addLog('error', 'Usage: !storecode <name> <content>');
@@ -448,6 +461,13 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <a 
+              href="/index24.html" 
+              className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
+            >
+              <Globe className="w-4 h-4" />
+              <span className="hidden sm:inline">System Access</span>
+            </a>
             <button 
               onClick={() => setIsMenuOpen(true)} 
               className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
@@ -622,9 +642,9 @@ export default function App() {
                         <Globe className="w-3 h-3" />
                         Manifest
                       </a>
-                      <a href="/public/publicdownload.html" target="_blank" className="flex items-center gap-2 text-[10px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-widest border border-emerald-500/30 px-3 py-1 rounded-full bg-emerald-500/10">
+                      <a href="/public/publicdownload.html" download="sunset-console-full-system.html" className="flex items-center gap-2 text-[10px] text-emerald-400 hover:text-emerald-300 font-bold uppercase tracking-widest border border-emerald-500/30 px-3 py-1 rounded-full bg-emerald-500/10">
                         <Download className="w-3 h-3" />
-                        Download
+                        Download Full Console
                       </a>
                     </div>
                   )}
