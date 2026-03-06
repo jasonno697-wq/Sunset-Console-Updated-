@@ -275,6 +275,7 @@ export default function App() {
       window.URL.revokeObjectURL(url);
       addLog('success', 'System manifest HTML download started.');
       addToast('success', 'Download started: sunset-master-system.html');
+
     } catch (error) {
       addLog('error', 'Failed to prepare HTML download. Trying direct link fallback...');
       const link = document.createElement('a');
@@ -283,7 +284,7 @@ export default function App() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }
+
   };
 
   const handleCommand = async (cmd: string) => {
