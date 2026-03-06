@@ -1,89 +1,206 @@
 <!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sunset Console - HTML Download</title>
+    <title>Sunset Console • Download Portal</title>
     <style>
       :root {
         color-scheme: dark;
+        --bg: #09090f;
+        --panel: rgba(20, 20, 34, 0.9);
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #f97316;
+        --accent-2: #fb7185;
+        --ok: #22c55e;
+        --warn: #f59e0b;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
-        min-height: 100vh;
+        min-height: 100svh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(900px 450px at 15% -10%, rgba(249, 115, 22, 0.25), transparent 65%),
+          radial-gradient(900px 450px at 100% 0%, rgba(251, 113, 133, 0.2), transparent 60%),
+          var(--bg);
         display: grid;
         place-items: center;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        background: radial-gradient(circle at top, #2b1f52 0%, #141128 45%, #0a0a12 100%);
-        color: #f8fafc;
+        padding: 24px;
       }
 
-      .card {
-        width: min(640px, 92vw);
-        padding: 2rem;
-        border-radius: 1.25rem;
-        background: rgba(15, 23, 42, 0.72);
+      .portal {
+        width: min(760px, 100%);
+        background: var(--panel);
         border: 1px solid rgba(148, 163, 184, 0.2);
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #fdba74;
+        background: rgba(249, 115, 22, 0.12);
+        border: 1px solid rgba(249, 115, 22, 0.35);
+        border-radius: 999px;
+        padding: 6px 10px;
+        margin-bottom: 14px;
       }
 
       h1 {
-        margin: 0 0 0.75rem;
-        font-size: 1.6rem;
+        margin: 0 0 8px;
+        font-size: clamp(24px, 4vw, 34px);
       }
 
-      p {
-        margin: 0 0 1.5rem;
-        color: #cbd5e1;
+      .sub {
+        margin: 0 0 22px;
+        color: var(--muted);
+        line-height: 1.55;
       }
 
       .actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.75rem;
+        gap: 10px;
       }
 
-      .btn {
+      button, a.btn {
+        appearance: none;
+        border: 0;
         text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 0.75rem;
-        padding: 0.75rem 1rem;
+        cursor: pointer;
         font-weight: 700;
-        border: 1px solid transparent;
+        border-radius: 12px;
+        padding: 12px 14px;
+        transition: 120ms ease;
       }
 
-      .btn-primary {
-        background: linear-gradient(135deg, #fb7185, #f97316);
-        color: #0f172a;
+      button.primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        color: #111827;
+      }
+      button.primary:hover { transform: translateY(-1px); }
+
+      a.btn.secondary {
+        color: var(--text);
+        background: rgba(148, 163, 184, 0.08);
+        border: 1px solid rgba(148, 163, 184, 0.28);
       }
 
-      .btn-secondary {
-        border-color: rgba(148, 163, 184, 0.3);
-        color: #f8fafc;
+      .status {
+        margin-top: 16px;
+        border-radius: 12px;
+        padding: 12px 14px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(148, 163, 184, 0.08);
+        color: #dbeafe;
+        font-size: 14px;
+      }
+
+      .status.ok {
+        border-color: rgba(34, 197, 94, 0.45);
+        background: rgba(34, 197, 94, 0.12);
+        color: #bbf7d0;
+      }
+
+      .status.warn {
+        border-color: rgba(245, 158, 11, 0.45);
+        background: rgba(245, 158, 11, 0.12);
+        color: #fde68a;
+      }
+
+      .links {
+        margin-top: 18px;
+        display: grid;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: rgba(148, 163, 184, 0.12);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 6px;
+        padding: 2px 6px;
       }
     </style>
   </head>
   <body>
-    <main class="card">
-      <h1>Sunset Console HTML Export</h1>
-      <p>
-        Use this page to download the latest full system manifest as an HTML file.
+    <main class="portal">
+      <div class="tag">Sunset Console Export</div>
+      <h1>Download Full Manifest HTML</h1>
+      <p class="sub">
+        This portal downloads the latest generated system manifest as
+        <code>sunset-master-system.html</code>. If your browser blocks auto-download,
+        use the direct endpoint links below.
       </p>
+
       <div class="actions">
-        <a class="btn btn-primary" href="/public/publicdownload.html" download="sunset-master-system.html">
-          Download <code>sunset-master-system.html</code>
-        </a>
-        <a class="btn btn-secondary" href="/public.html" target="_blank" rel="noopener noreferrer">
-          Preview Manifest
-        </a>
+        <button class="primary" id="downloadBtn" type="button">Download HTML Now</button>
+        <a class="btn secondary" href="/public.html" target="_blank" rel="noopener noreferrer">Preview Manifest</a>
+      </div>
+
+      <div id="status" class="status" role="status" aria-live="polite">
+        Ready to download.
+      </div>
+
+      <div class="links">
+        <span>Direct download endpoint: <a href="/public/publicdownload.html">/public/publicdownload.html</a></span>
+        <span>Portal route alias: <a href="/download">/download</a></span>
       </div>
     </main>
+
+    <script>
+      const statusEl = document.getElementById('status');
+      const btn = document.getElementById('downloadBtn');
+
+      function setStatus(message, tone = 'default') {
+        statusEl.textContent = message;
+        statusEl.className = 'status' + (tone === 'ok' ? ' ok' : tone === 'warn' ? ' warn' : '');
+      }
+
+      async function triggerDownload() {
+        setStatus('Preparing download…');
+        btn.disabled = true;
+
+        try {
+          const response = await fetch('/public/publicdownload.html', { method: 'GET' });
+          if (!response.ok) {
+            throw new Error('Server returned ' + response.status);
+          }
+
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'sunset-master-system.html';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+
+          setStatus('Download started successfully. Check your browser downloads.', 'ok');
+        } catch (err) {
+          setStatus('Auto-download failed. Use the direct endpoint link below.', 'warn');
+          console.error(err);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      btn.addEventListener('click', triggerDownload);
+    </script>
   </body>
 </html>
