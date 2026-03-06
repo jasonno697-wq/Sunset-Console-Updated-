@@ -47,6 +47,11 @@ async function startServer() {
   app.use(express.json());
   const PORT = 3000;
 
+  const safeText = (value: unknown, fallback = '') => {
+    if (typeof value !== 'string') return fallback;
+    return value.trim();
+  };
+
   // Ensure public directory exists
   const publicDir = path.join(__dirname, "public");
   if (!fs.existsSync(publicDir)) {
@@ -73,38 +78,73 @@ async function startServer() {
   });
 
   app.post("/api/database/code", (req, res) => {
-    const { name, content } = req.body;
+    const name = safeText(req.body?.name);
+    const content = safeText(req.body?.content);
+
+    if (!name || !content) {
+      return res.status(400).json({ error: "name and content are required" });
+    }
+
     const info = db.prepare("INSERT INTO code_snippets (name, content) VALUES (?, ?)").run(name, content);
-    res.json({ id: info.lastInsertRowid });
+    return res.json({ id: info.lastInsertRowid });
   });
 
   app.post("/api/database/download", (req, res) => {
-    const { filename, size, status, malware_check } = req.body;
+    const filename = safeText(req.body?.filename);
+    const size = safeText(req.body?.size, "Unknown");
+    const status = safeText(req.body?.status, "Pending");
+    const malwareCheck = safeText(req.body?.malware_check, "Unknown");
+
+    if (!filename) {
+      return res.status(400).json({ error: "filename is required" });
+    }
+
     const info = db.prepare("INSERT INTO downloads (filename, size, status, malware_check) VALUES (?, ?, ?, ?)")
-      .run(filename, size, status, malware_check);
-    res.json({ id: info.lastInsertRowid });
+      .run(filename, size, status, malwareCheck);
+    return res.json({ id: info.lastInsertRowid });
   });
 
   app.post("/api/database/nodes", (req, res) => {
-    const { nodes } = req.body;
+    const nodes = Array.isArray(req.body?.nodes) ? req.body.nodes : null;
+    if (!nodes) {
+      return res.status(400).json({ error: "nodes must be an array" });
+    }
+
     const deleteStmt = db.prepare("DELETE FROM system_nodes");
     const insertStmt = db.prepare("INSERT INTO system_nodes (id, name, status, type, category, connected) VALUES (?, ?, ?, ?, ?, ?)");
     
-    const transaction = db.transaction((nodesList) => {
+    const transaction = db.transaction((nodesList: any[]) => {
       deleteStmt.run();
       for (const node of nodesList) {
-        insertStmt.run(node.id, node.name, node.status, node.type, node.category, node.connected ? 1 : 0);
+        const id = safeText(node?.id);
+        const name = safeText(node?.name);
+        if (!id || !name) continue;
+
+        insertStmt.run(
+          id,
+          name,
+          safeText(node?.status, "offline"),
+          safeText(node?.type, "System"),
+          safeText(node?.category, "System"),
+          node?.connected ? 1 : 0,
+        );
       }
     });
     
     transaction(nodes);
-    res.json({ status: "ok" });
+    return res.json({ status: "ok" });
   });
 
   app.post("/api/database/versions", (req, res) => {
-    const { version_tag, logs } = req.body;
-    const info = db.prepare("INSERT INTO versions (version_tag, logs) VALUES (?, ?)").run(version_tag, JSON.stringify(logs));
-    res.json({ id: info.lastInsertRowid });
+    const versionTag = safeText(req.body?.version_tag);
+    const logs = req.body?.logs;
+
+    if (!versionTag || !Array.isArray(logs)) {
+      return res.status(400).json({ error: "version_tag and logs array are required" });
+    }
+
+    const info = db.prepare("INSERT INTO versions (version_tag, logs) VALUES (?, ?)").run(versionTag, JSON.stringify(logs));
+    return res.json({ id: info.lastInsertRowid });
   });
 
     const generateManifestHtml = () => {
