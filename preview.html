@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sunset Console Preview</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #09090f;
+        --panel: rgba(17, 24, 39, 0.7);
+        --text: #f8fafc;
+        --muted: #94a3b8;
+        --accent: #fb923c;
+        --accent2: #f472b6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(850px 420px at 10% -15%, rgba(251, 146, 60, 0.22), transparent 65%),
+          radial-gradient(700px 400px at 95% 0%, rgba(244, 114, 182, 0.2), transparent 60%),
+          var(--bg);
+      }
+
+      .wrap {
+        width: min(1000px, 94vw);
+        margin: 48px auto;
+        display: grid;
+        gap: 18px;
+      }
+
+      .card {
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        background: var(--panel);
+        border-radius: 18px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+      }
+
+      header.card {
+        padding: 24px;
+      }
+
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: #fed7aa;
+        border: 1px solid rgba(251, 146, 60, 0.35);
+        background: rgba(251, 146, 60, 0.14);
+        border-radius: 999px;
+        padding: 5px 10px;
+      }
+
+      h1 {
+        margin: 14px 0 8px;
+        font-size: clamp(30px, 5vw, 48px);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .main {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 18px;
+      }
+
+      .section {
+        padding: 22px;
+      }
+
+      .actions {
+        margin-top: 16px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      button,
+      a.btn {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-weight: 700;
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      button.primary {
+        color: #0f172a;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+      }
+
+      a.btn {
+        color: var(--text);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        background: rgba(148, 163, 184, 0.06);
+      }
+
+      ul {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        line-height: 1.6;
+      }
+
+      .status {
+        margin-top: 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      .status.ok {
+        border-color: rgba(34, 197, 94, 0.5);
+        color: #bbf7d0;
+        background: rgba(34, 197, 94, 0.15);
+      }
+
+      @media (max-width: 860px) {
+        .main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="card">
+        <span class="badge">Working HTML Preview</span>
+        <h1>Sunset Console Website Preview</h1>
+        <p class="muted">
+          This is a standalone HTML page you can open directly in your browser.
+          It does not require Node, Vite, or any build step.
+        </p>
+      </header>
+
+      <div class="main">
+        <section class="card section">
+          <h2>Quick Start</h2>
+          <ul class="muted">
+            <li>Open <code>preview.html</code> in your browser.</li>
+            <li>Or run <code>python3 -m http.server 8080</code> and visit <code>/preview.html</code>.</li>
+            <li>Use the buttons below to navigate existing project pages.</li>
+          </ul>
+
+          <div class="actions">
+            <button id="checkBtn" class="primary" type="button">Check Preview Status</button>
+            <a class="btn" href="/download.html" target="_blank" rel="noopener noreferrer">Open Download Portal</a>
+            <a class="btn" href="/" target="_blank" rel="noopener noreferrer">Open App Root</a>
+          </div>
+
+          <div id="status" class="status muted">Status: ready.</div>
+        </section>
+
+        <aside class="card section">
+          <h2>What this gives you</h2>
+          <ul class="muted">
+            <li>A clean, working HTML webpage.</li>
+            <li>A simple preview entry point for your project.</li>
+            <li>No dependency on API keys to load this page.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      const checkBtn = document.getElementById('checkBtn');
+      const statusEl = document.getElementById('status');
+
+      checkBtn.addEventListener('click', () => {
+        const now = new Date().toLocaleTimeString();
+        statusEl.textContent = `Status: preview is working ✅ (${now})`;
+        statusEl.classList.add('ok');
+      });
+    </script>
+  </body>
+</html>
