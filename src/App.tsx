@@ -64,6 +64,7 @@ const COMMANDS = [
   { cmd: '!bypassai', desc: 'Open AI-Powered Admin Console', icon: Bot },
   { cmd: '!download', desc: 'Download file with malware check', icon: Download },
   { cmd: '!downloadsystem', desc: 'Download the entire system source', icon: ShieldCheck },
+  { cmd: '!downloadhtml', desc: 'Download system manifest as HTML file', icon: Download },
   { cmd: '!storecode', desc: 'Store code snippet in database', icon: FileCode },
   { cmd: '!clear', desc: 'Clear console logs', icon: XCircle },
   { cmd: '!save', desc: 'Save current system version', icon: Lock },
@@ -258,6 +259,33 @@ export default function App() {
     }
   };
 
+  const downloadSystemHtml = async () => {
+    addLog('info', 'Preparing full system manifest for HTML download...');
+    try {
+      const response = await fetch('/public/publicdownload.html');
+      if (!response.ok) throw new Error('Network response was not ok');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'sunset-master-system.html';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      addLog('success', 'System manifest HTML download started.');
+      addToast('success', 'Download started: sunset-master-system.html');
+    } catch (error) {
+      addLog('error', 'Failed to prepare HTML download. Trying direct link fallback...');
+      const link = document.createElement('a');
+      link.href = '/public/publicdownload.html';
+      link.download = 'sunset-master-system.html';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   const handleCommand = async (cmd: string) => {
     const parts = cmd.trim().split(' ');
     const cleanCmd = parts[0].toLowerCase();
@@ -439,30 +467,10 @@ export default function App() {
         }
       },
       '!downloadsystem': async () => {
-        addLog('info', 'Preparing full system manifest for download...');
-        try {
-          const response = await fetch('/public/publicdownload.html');
-          if (!response.ok) throw new Error('Network response was not ok');
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'sunset-master-system.html';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-          addLog('success', 'Full system download triggered successfully.');
-        } catch (error) {
-          addLog('error', 'Failed to prepare system download. Server link may be restricted.');
-          // Fallback
-          const link = document.createElement('a');
-          link.href = '/public/publicdownload.html';
-          link.download = 'sunset-master-system.html';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
+        await downloadSystemHtml();
+      },
+      '!downloadhtml': async () => {
+        await downloadSystemHtml();
       },
       '!storecode': async () => {
         if (!args) {
@@ -754,6 +762,13 @@ export default function App() {
               <Globe className="w-4 h-4" />
               <span className="hidden sm:inline">System Manifest</span>
             </a>
+            <button
+              onClick={() => void downloadSystemHtml()}
+              className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">Download HTML</span>
+            </button>
             <button 
               onClick={() => setIsMenuOpen(true)} 
               className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
