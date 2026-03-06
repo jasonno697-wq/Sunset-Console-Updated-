@@ -62,6 +62,16 @@ async function startServer() {
     res.json({ snippets, downloads, nodes, versions });
   });
 
+  app.get("/api/system/stats", (req, res) => {
+    res.json({
+      cpu: Math.random() * 100,
+      ram: Math.random() * 64,
+      network: Math.random() * 10,
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    });
+  });
+
   app.post("/api/database/code", (req, res) => {
     const { name, content } = req.body;
     const info = db.prepare("INSERT INTO code_snippets (name, content) VALUES (?, ?)").run(name, content);
@@ -97,53 +107,34 @@ async function startServer() {
     res.json({ id: info.lastInsertRowid });
   });
 
-  const assembleChromebookHtml = () => {
-    try {
-      const template = fs.readFileSync(path.join(__dirname, "chromebook/index.html"), "utf-8");
-      const css = fs.readFileSync(path.join(__dirname, "chromebook/css/styles.css"), "utf-8");
-      const matrixJs = fs.readFileSync(path.join(__dirname, "chromebook/js/matrix.js"), "utf-8");
-      const detectionJs = fs.readFileSync(path.join(__dirname, "chromebook/js/detection.js"), "utf-8");
-      const downloadJs = fs.readFileSync(path.join(__dirname, "chromebook/js/download.js"), "utf-8");
-      const manifestJs = fs.readFileSync(path.join(__dirname, "chromebook/js/manifest.js"), "utf-8");
-
-      return template
-        .replace("/* BUNDLED_CSS */", css)
-        .replace("/* BUNDLED_JS_MATRIX */", matrixJs)
-        .replace("/* BUNDLED_JS_DETECTION */", detectionJs)
-        .replace("/* BUNDLED_JS_DOWNLOAD */", downloadJs)
-        .replace("/* BUNDLED_JS_MANIFEST */", manifestJs);
-    } catch (e) {
-      console.error("Failed to assemble Chromebook HTML", e);
-      return "Error assembling system access page.";
-    }
-  };
-
-  const generateManifestHtml = () => {
+    const generateManifestHtml = () => {
     const snippets = db.prepare("SELECT * FROM code_snippets").all();
     const downloads = db.prepare("SELECT * FROM downloads").all();
     const nodes = db.prepare("SELECT * FROM system_nodes").all();
     const versions = db.prepare("SELECT * FROM versions").all();
     
-    let appCode = "Source code restricted.";
-    let serverCode = "Source code restricted.";
-    let packageJson = "Source code restricted.";
-    let viteConfig = "Source code restricted.";
-    let indexHtml = "Source code restricted.";
-    let index24Html = "Source code restricted.";
-    let mainTsx = "Source code restricted.";
-    let indexCss = "Source code restricted.";
+    const filesToRead = [
+      { path: "src/App.tsx", label: "/src/App.tsx (Main Logic)", type: "TYPESCRIPT / REACT" },
+      { path: "server.ts", label: "/server.ts (Backend Core)", type: "EXPRESS / SQLITE" },
+      { path: "src/components/NeuralMap.tsx", label: "/src/components/NeuralMap.tsx", type: "D3.JS / REACT" },
+      { path: "src/components/SystemCharts.tsx", label: "/src/components/SystemCharts.tsx", type: "RECHARTS / REACT" },
+      { path: "package.json", label: "/package.json", type: "JSON" },
+      { path: "vite.config.ts", label: "/vite.config.ts", type: "TYPESCRIPT" },
+      { path: "index.html", label: "/index.html", type: "HTML" },
+      { path: "src/main.tsx", label: "/src/main.tsx", type: "TYPESCRIPT" },
+      { path: "src/index.css", label: "/src/index.css", type: "CSS" },
+      { path: "tsconfig.json", label: "/tsconfig.json", type: "JSON" },
+      { path: ".env.example", label: "/.env.example", type: "ENV" },
+    ];
 
-    try {
-      appCode = fs.readFileSync(path.join(__dirname, "src/App.tsx"), "utf-8");
-      serverCode = fs.readFileSync(path.join(__dirname, "server.ts"), "utf-8");
-      packageJson = fs.readFileSync(path.join(__dirname, "package.json"), "utf-8");
-      viteConfig = fs.readFileSync(path.join(__dirname, "vite.config.ts"), "utf-8");
-      indexHtml = fs.readFileSync(path.join(__dirname, "index.html"), "utf-8");
-      index24Html = assembleChromebookHtml();
-      mainTsx = fs.readFileSync(path.join(__dirname, "src/main.tsx"), "utf-8");
-      indexCss = fs.readFileSync(path.join(__dirname, "src/index.css"), "utf-8");
-    } catch (e) {
-      console.error("Failed to read source code", e);
+    const sourceCode: Record<string, string> = {};
+
+    for (const file of filesToRead) {
+      try {
+        sourceCode[file.path] = fs.readFileSync(path.join(__dirname, file.path), "utf-8");
+      } catch (e) {
+        sourceCode[file.path] = `Source code for ${file.path} restricted or missing.`;
+      }
     }
 
     const escape = (str: string) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -154,72 +145,101 @@ async function startServer() {
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Sunset Console - Public Manifest (ChatGPT Codex Integrated)</title>
+          <title>SUNSET MASTER SYSTEM - Mastered Manifest v3.0</title>
           <script src="https://cdn.tailwindcss.com"></script>
           <style>
               @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-              body { font-family: 'JetBrains Mono', monospace; background-color: #0f172a; color: #e2e8f0; }
-              .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-              pre { background: rgba(0,0,0,0.5); padding: 1rem; border-radius: 0.75rem; overflow-x: auto; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.05); }
-              code { color: #94a3b8; }
-              .section-title { font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
-              .dot { width: 0.5rem; height: 0.5rem; rounded: 9999px; }
+              body { font-family: 'JetBrains Mono', monospace; background-color: #020202; color: #e2e8f0; }
+              .glass { background: rgba(10, 10, 15, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.03); }
+              pre { background: rgba(0,0,0,0.9); padding: 2rem; border-radius: 1.5rem; overflow-x: auto; font-size: 0.75rem; border: 1px solid rgba(255,255,255,0.05); line-height: 1.6; }
+              code { color: #cbd5e1; }
+              .section-title { font-size: 1.25rem; font-weight: 800; color: #fff; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem; text-transform: uppercase; letter-spacing: 0.2em; }
+              .dot { width: 0.75rem; height: 0.75rem; border-radius: 9999px; }
+              .glow-orange { box-shadow: 0 0 40px rgba(249, 115, 22, 0.1); }
+              .glow-text { text-shadow: 0 0 10px rgba(249, 115, 22, 0.5); }
+              ::-webkit-scrollbar { width: 8px; }
+              ::-webkit-scrollbar-track { background: transparent; }
+              ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+              ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
+              .code-header { display: flex; justify-content: space-between; align-items: center; padding: 0 1rem; margin-bottom: 1rem; }
           </style>
       </head>
-      <body class="p-8">
-          <div class="max-w-5xl mx-auto space-y-12">
-              <header class="glass p-10 rounded-[2rem] border-orange-500/30 shadow-2xl relative overflow-hidden">
-                  <div class="absolute top-0 right-0 p-8 opacity-10">
-                      <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><path d="m4.93 4.93 1.41 1.41"/><path d="M2 12h8"/><path d="m4.93 19.07 1.41-1.41"/><path d="M12 22v-8"/><path d="m19.07 19.07-1.41-1.41"/><path d="M22 12h-8"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      <body class="p-6 md:p-16">
+          <div class="max-w-7xl mx-auto space-y-16">
+              <header class="glass p-16 rounded-[3rem] border-orange-500/10 glow-orange relative overflow-hidden">
+                  <div class="absolute -top-24 -right-24 opacity-5">
+                      <svg width="400" height="400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.2"><circle cx="12" cy="12" r="10"/><path d="M12 2v20"/><path d="M2 12h20"/><path d="m4.93 4.93 14.14 14.14"/><path d="m4.93 19.07 14.14-14.14"/></svg>
                   </div>
-                  <h1 class="text-5xl font-bold text-orange-500 mb-4 tracking-tighter">SUNSET CONSOLE</h1>
-                  <p class="text-white/40 uppercase tracking-[0.3em] text-xs font-bold">System Manifest • ChatGPT Codex Integrated • v2.5+</p>
-                  <div class="mt-8 flex flex-wrap gap-4">
-                      <div class="glass px-4 py-2 rounded-xl border-orange-500/20">
-                          <span class="text-[10px] text-white/40 block uppercase mb-1">Database Status</span>
-                          <span class="text-emerald-400 font-bold">ENCRYPTED / ONLINE</span>
-                      </div>
-                      <div class="glass px-4 py-2 rounded-xl border-orange-500/20">
-                          <span class="text-[10px] text-white/40 block uppercase mb-1">Nodes Detected</span>
-                          <span class="text-orange-400 font-bold">${nodes.length} ACTIVE</span>
-                      </div>
-                      <div class="glass px-4 py-2 rounded-xl border-orange-500/20">
-                          <span class="text-[10px] text-white/40 block uppercase mb-1">Protection Level</span>
-                          <span class="text-emerald-400 font-bold">KERNEL SHIELD (24/7 ACTIVE)</span>
-                      </div>
+                  <div class="relative z-10">
+                    <div class="flex items-center gap-4 mb-8">
+                        <span class="px-3 py-1 bg-orange-500/10 text-orange-500 text-[10px] font-black rounded-full border border-orange-500/20 tracking-[0.2em]">MASTERED</span>
+                        <span class="text-white/20 text-[10px] font-black tracking-widest uppercase">System Integrity: 100%</span>
+                    </div>
+                    <h1 class="text-7xl md:text-8xl font-black text-white mb-8 tracking-tighter italic glow-text">SUNSET<span class="text-orange-500">MASTER</span></h1>
+                    <p class="text-white/20 uppercase tracking-[0.6em] text-[11px] font-black mb-12">Full System Source Manifest • Quantum Encryption Layer • v3.0.0-FINAL</p>
+                    <div class="flex flex-wrap gap-8">
+                        <div class="glass px-8 py-5 rounded-3xl border-orange-500/5">
+                            <span class="text-[10px] text-white/20 block uppercase mb-2 font-bold tracking-widest">Kernel Core</span>
+                            <span class="text-emerald-400 font-black text-base tracking-widest">ACTIVE / MASTERED</span>
+                        </div>
+                        <div class="glass px-8 py-5 rounded-3xl border-orange-500/5">
+                            <span class="text-[10px] text-white/20 block uppercase mb-2 font-bold tracking-widest">Neural Nodes</span>
+                            <span class="text-orange-400 font-black text-base tracking-widest">${nodes.length} SYNCHRONIZED</span>
+                        </div>
+                        <div class="glass px-8 py-5 rounded-3xl border-orange-500/5">
+                            <span class="text-[10px] text-white/20 block uppercase mb-2 font-bold tracking-widest">Uptime</span>
+                            <span class="text-blue-400 font-black text-base tracking-widest">${Math.floor(process.uptime())}s</span>
+                        </div>
+                        <div class="glass px-8 py-5 rounded-3xl border-orange-500/5">
+                            <span class="text-[10px] text-white/20 block uppercase mb-2 font-bold tracking-widest">Database</span>
+                            <span class="text-purple-400 font-black text-base tracking-widest">${snippets.length + downloads.length + versions.length} RECORDS</span>
+                        </div>
+                    </div>
+                    <div class="mt-12">
+                        <a href="/public/publicdownload.html" class="inline-flex items-center gap-3 px-8 py-4 bg-orange-500 text-black font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-orange-400 transition-all shadow-xl shadow-orange-500/20">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            Download Full System Manifest
+                        </a>
+                    </div>
                   </div>
               </header>
 
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <section class="glass p-8 rounded-[2rem] space-y-6">
-                      <h2 class="section-title"><span class="dot bg-orange-500 animate-pulse"></span> System Nodes (Software Hub)</h2>
-                      <div class="grid grid-cols-1 gap-3">
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                  <section class="glass p-12 rounded-[3.5rem] lg:col-span-2 space-y-12">
+                      <h2 class="section-title"><span class="dot bg-orange-500 animate-pulse"></span> Network Topology</h2>
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                           ${nodes.map((n: any) => `
-                              <div class="p-4 bg-black/40 border border-white/5 rounded-2xl flex justify-between items-center">
+                              <div class="p-6 bg-black/40 border border-white/5 rounded-[2rem] flex justify-between items-center group hover:border-orange-500/20 transition-all">
                                   <div>
-                                      <span class="text-[10px] text-white/20 uppercase font-bold block mb-1">${n.category}</span>
-                                      <h3 class="text-white font-medium text-sm">${n.name}</h3>
+                                      <span class="text-[10px] text-white/10 uppercase font-black block mb-2 tracking-widest">${n.category}</span>
+                                      <h3 class="text-white font-bold text-base group-hover:text-orange-400 transition-colors">${n.name}</h3>
                                   </div>
-                                  <div class="flex items-center gap-3">
-                                      <span class="text-[10px] font-bold ${n.connected ? 'text-orange-400' : 'text-white/20'}">${n.connected ? 'CONNECTED' : 'DISCONNECTED'}</span>
-                                      <div class="w-2 h-2 rounded-full ${n.status === 'online' ? 'bg-emerald-500' : 'bg-red-500'}"></div>
+                                  <div class="flex items-center gap-6">
+                                      <div class="text-right">
+                                        <span class="text-[9px] font-black block ${n.connected ? 'text-orange-500' : 'text-white/5'} tracking-widest">${n.connected ? 'LINKED' : 'STANDBY'}</span>
+                                        <span class="text-[9px] text-white/10 uppercase font-bold">${n.status}</span>
+                                      </div>
+                                      <div class="w-3 h-3 rounded-full ${n.status === 'online' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-red-500'}"></div>
                                   </div>
                               </div>
                           `).join('')}
                       </div>
                   </section>
 
-                  <section class="glass p-8 rounded-[2rem] space-y-6">
-                      <h2 class="section-title"><span class="dot bg-emerald-500 animate-pulse"></span> Download History</h2>
-                      <div class="space-y-4">
-                          ${downloads.length === 0 ? '<p class="text-white/20 italic text-sm">No downloads recorded.</p>' : downloads.map((d: any) => `
-                              <div class="p-5 bg-black/40 border border-white/5 rounded-2xl">
-                                  <div class="flex justify-between items-start mb-3">
+                  <section class="glass p-12 rounded-[3.5rem] space-y-12">
+                      <h2 class="section-title"><span class="dot bg-emerald-500 animate-pulse"></span> Data Streams</h2>
+                      <div class="space-y-6">
+                          ${downloads.length === 0 ? '<p class="text-white/10 italic text-sm text-center py-12">No active data streams detected.</p>' : downloads.map((d: any) => `
+                              <div class="p-8 bg-black/40 border border-white/5 rounded-[2rem]">
+                                  <div class="flex justify-between items-start mb-6">
                                       <div>
-                                          <h3 class="text-white font-bold text-sm mb-1">${d.filename}</h3>
-                                          <p class="text-[10px] text-white/40 uppercase tracking-widest">${d.size} • ${d.timestamp}</p>
+                                          <h3 class="text-white font-black text-sm mb-2 tracking-tight">${d.filename}</h3>
+                                          <p class="text-[10px] text-white/20 uppercase font-bold tracking-widest">${d.size} • ${d.timestamp}</p>
                                       </div>
-                                      <span class="text-[10px] font-bold px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${d.malware_check}</span>
+                                      <span class="text-[9px] font-black px-3 py-1.5 rounded-xl bg-emerald-500/5 text-emerald-400 border border-emerald-500/10 uppercase tracking-widest">${d.malware_check}</span>
+                                  </div>
+                                  <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-emerald-500 h-full w-full opacity-30"></div>
                                   </div>
                               </div>
                           `).join('')}
@@ -227,66 +247,24 @@ async function startServer() {
                   </section>
               </div>
 
-              <section class="glass p-8 rounded-[2rem] space-y-6">
-                  <h2 class="section-title"><span class="dot bg-purple-500 animate-pulse"></span> Version History</h2>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      ${versions.length === 0 ? '<p class="text-white/20 italic text-sm">No versions saved.</p>' : versions.map((v: any) => `
-                          <div class="p-4 bg-black/40 border border-white/5 rounded-2xl">
-                              <div class="flex justify-between items-center">
-                                  <span class="text-purple-400 font-bold text-sm">${v.version_tag}</span>
-                                  <span class="text-[10px] text-white/20">${v.timestamp}</span>
+              <section class="glass p-12 rounded-[3.5rem] space-y-16">
+                  <h2 class="section-title"><span class="dot bg-blue-500 animate-pulse"></span> Master Source Repository</h2>
+                  
+                  <div class="grid grid-cols-1 gap-16">
+                      ${filesToRead.map(file => `
+                          <div class="space-y-8">
+                              <div class="code-header">
+                                <h3 class="text-white/30 text-[11px] font-black uppercase tracking-[0.4em]">${file.label}</h3>
+                                <span class="text-[10px] text-blue-400 font-black tracking-widest">${file.type}</span>
                               </div>
+                              <pre><code class="language-typescript">${escape(sourceCode[file.path])}</code></pre>
                           </div>
                       `).join('')}
                   </div>
               </section>
 
-              <section class="glass p-8 rounded-[2rem] space-y-8">
-                  <h2 class="section-title"><span class="dot bg-blue-500 animate-pulse"></span> Full System Source Code (ALL FILES)</h2>
-                  
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/src/App.tsx (Frontend Logic)</h3>
-                      <pre><code class="language-typescript">${escape(appCode)}</code></pre>
-                  </div>
-
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/server.ts (Backend & Database)</h3>
-                      <pre><code class="language-typescript">${escape(serverCode)}</code></pre>
-                  </div>
-
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/package.json (Dependencies)</h3>
-                      <pre><code class="language-json">${escape(packageJson)}</code></pre>
-                  </div>
-
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/vite.config.ts (Build Config)</h3>
-                      <pre><code class="language-typescript">${escape(viteConfig)}</code></pre>
-                  </div>
-
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/index.html (Entry Point)</h3>
-                      <pre><code class="language-html">${escape(indexHtml)}</code></pre>
-                  </div>
-
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/index24.html (System Access Page)</h3>
-                      <pre><code class="language-html">${escape(index24Html)}</code></pre>
-                  </div>
-
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/src/main.tsx (React Entry)</h3>
-                      <pre><code class="language-typescript">${escape(mainTsx)}</code></pre>
-                  </div>
-
-                  <div class="space-y-4">
-                      <h3 class="text-white/60 text-xs font-bold uppercase tracking-widest">/src/index.css (Global Styles)</h3>
-                      <pre><code class="language-css">${escape(indexCss)}</code></pre>
-                  </div>
-              </section>
-
-              <footer class="text-center text-white/20 text-[10px] uppercase tracking-[0.5em] font-bold py-12">
-                  End of System Manifest • Sunset Console Security Protocol • ChatGPT Codex Protected
+              <footer class="text-center text-white/5 text-[10px] uppercase tracking-[1em] font-black py-32">
+                  System Mastered • Sunset Master Security Protocol • v3.0.0-FINAL
               </footer>
           </div>
       </body>
@@ -299,33 +277,11 @@ async function startServer() {
     res.send(generateManifestHtml());
   });
 
-  // chromebook/index.html Route - Injects manifest data
-  app.get("/chromebook/index.html", (req, res) => {
-    let content = assembleChromebookHtml();
-    const manifestHtml = generateManifestHtml();
-    
-    // Inject the manifest as a hidden data attribute or a script variable
-    // This allows the "Download System" button to work offline by creating a blob
-    const escapedManifest = Buffer.from(manifestHtml).toString('base64');
-    
-    content = content.replace(
-      '</body>',
-      `<script>window.__SYSTEM_MANIFEST__ = "${escapedManifest}";</script></body>`
-    );
-    
-    res.send(content);
-  });
-
-  // Redirect old index24.html to new location
-  app.get("/index24.html", (req, res) => {
-    res.redirect("/chromebook/index.html");
-  });
-
   // public/publicdownload.html Route - Forces Download
   app.get("/public/publicdownload.html", (req, res) => {
     try {
       const html = generateManifestHtml();
-      res.setHeader('Content-Disposition', 'attachment; filename="sunset-console-full-system.html"');
+      res.setHeader('Content-Disposition', 'attachment; filename="sunset-master-system.html"');
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.send(html);
     } catch (error) {

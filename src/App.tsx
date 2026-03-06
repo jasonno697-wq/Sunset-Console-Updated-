@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Terminal, 
@@ -25,20 +25,30 @@ import {
   Database as DatabaseIcon,
   Download,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  ChevronRight,
+  Layers,
+  Eye,
+  EyeOff
 } from 'lucide-react';
-import { useChromebook } from './chromebook/useChromebook';
-import { ChromebookOverlay } from './chromebook/ChromebookOverlay';
 import { GoogleGenAI } from "@google/genai";
+import { SystemLineChart } from './components/SystemCharts';
+import { NeuralMap } from './components/NeuralMap';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 const DEFAULT_SOFTWARE = [
-  { id: '1', name: 'Core Engine', status: 'online', type: 'System' },
-  { id: '2', name: 'Wave Processor', status: 'online', type: 'Service' },
-  { id: '3', name: 'Sunset Renderer', status: 'online', type: 'App' },
-  { id: '4', name: 'Cloud Sync', status: 'offline', type: 'Service' },
-  { id: '5', name: 'Drive Access', status: 'offline', type: 'System' },
-  { id: '6', name: 'Kernel Shield', status: 'online', type: 'System' },
-  { id: '7', name: 'Network Bridge', status: 'offline', type: 'Service' },
+  { id: '1', name: 'Quantum Neural Engine', status: 'online', type: 'System', category: 'System' },
+  { id: '2', name: 'Sub-Space Wave Processor', status: 'online', type: 'Service', category: 'System' },
+  { id: '3', name: 'Sunset Hyper-Renderer', status: 'online', type: 'App', category: 'App' },
+  { id: '4', name: 'Multi-Cloud Sync Node', status: 'offline', type: 'Service', category: 'System' },
+  { id: '5', name: 'Direct Kernel Access', status: 'offline', type: 'System', category: 'System' },
+  { id: '6', name: 'Quantum Shield v4', status: 'online', type: 'System', category: 'System' },
+  { id: '7', name: 'Neural Network Bridge', status: 'offline', type: 'Service', category: 'System' },
 ];
 
 const COMMANDS = [
@@ -57,6 +67,11 @@ const COMMANDS = [
   { cmd: '!storecode', desc: 'Store code snippet in database', icon: FileCode },
   { cmd: '!clear', desc: 'Clear console logs', icon: XCircle },
   { cmd: '!save', desc: 'Save current system version', icon: Lock },
+  { cmd: '!scan', desc: 'Deep network node scan', icon: Layers },
+  { cmd: '!decrypt', desc: 'Attempt to decrypt restricted data', icon: Unlock },
+  { cmd: '!cloak', desc: 'Toggle system visibility cloak', icon: EyeOff },
+  { cmd: '!telemetry', desc: 'Fetch real-time server telemetry', icon: Activity },
+  { cmd: '!master', desc: 'Initiate System Mastering Sequence', icon: ShieldCheck },
 ];
 
 interface LogEntry {
@@ -92,29 +107,57 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [adminMenu, setAdminMenu] = useState<'none' | 'bypass' | 'bypassai' | 'database' | 'versions'>('none');
   const [dbData, setDbData] = useState<{ snippets: any[], downloads: any[], versions: any[] }>({ snippets: [], downloads: [], versions: [] });
-  const [currentVersion, setCurrentVersion] = useState(2.5);
+  const [currentVersion, setCurrentVersion] = useState(3.0);
   const [aiChat, setAiChat] = useState<ChatMessage[]>([]);
+  const [systemStats, setSystemStats] = useState({ cpu: 12, ram: 24, network: 1.2, security: 98 });
+  const [statsHistory, setStatsHistory] = useState<any[]>([]);
   const [aiInput, setAiInput] = useState('');
   const [isAiThinking, setIsAiThinking] = useState(false);
-  const { isChromebookMode, setIsChromebookMode, toggleSandbox } = useChromebook();
+  const [showNeuralMap, setShowNeuralMap] = useState(false);
+  const [isCloaked, setIsCloaked] = useState(false);
+  const [isMastering, setIsMastering] = useState(false);
+  const [dataStream, setDataStream] = useState<string[]>([]);
+  const [toasts, setToasts] = useState<{ id: string, type: 'info' | 'success' | 'error', message: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const addToast = (type: 'info' | 'success' | 'error', message: string) => {
+    const id = Math.random().toString(36).substring(7);
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  };
+
   useEffect(() => {
-    addLog('system', 'Sunset Console v2.5.0 Initialized...');
-    addLog('info', 'ChatGPT Codex Protection: ACTIVE');
-    addLog('info', 'Kernel Shield: ONLINE 24/7');
+    addLog('system', 'Sunset Master System v3.0.0 Initialized...');
+    addLog('info', 'Neural Link Protection: ACTIVE');
+    addLog('info', 'Quantum Shield v4: ONLINE 24/7');
     addLog('info', 'Type !connect for full system access.');
     
-    // Detect if running on a "Chromebook" (simulated or real)
-    const isChromeOS = /\bCrOS\b/.test(navigator.userAgent);
-    if (isChromeOS) {
-      addLog('system', 'CHROMEBOOK DETECTED: Browser-level sandbox active.');
-    }
-
     fetchDatabase();
     // Ensure Kernel Shield is connected by default
     setConnectedSoftware(prev => prev.includes('6') ? prev : [...prev, '6']);
+
+    const statsInterval = setInterval(() => {
+      setSystemStats(prev => {
+        const next = {
+          cpu: Math.max(5, Math.min(95, prev.cpu + (Math.random() * 10 - 5))),
+          ram: Math.max(10, Math.min(90, prev.ram + (Math.random() * 4 - 2))),
+          network: Math.max(0.1, Math.min(10, prev.network + (Math.random() * 2 - 1))),
+          security: Math.max(80, Math.min(100, prev.security + (Math.random() * 2 - 1)))
+        };
+        
+        setStatsHistory(h => [...h.slice(-20), { ...next, time: new Date().toLocaleTimeString() }]);
+        return next;
+      });
+
+      // Update data stream
+      setDataStream(prev => [
+        Math.random().toString(16).substring(2, 15).toUpperCase(),
+        ...prev.slice(0, 15)
+      ]);
+    }, 2000);
+
+    return () => clearInterval(statsInterval);
   }, []);
 
   useEffect(() => {
@@ -177,13 +220,10 @@ export default function App() {
         model: "gemini-3-flash-preview",
         contents: aiChat.concat(userMsg).map(m => ({ role: m.role, parts: [{ text: m.text }] })),
         config: {
-          systemInstruction: `You are the Sunset Console AI Advisor, powered by ChatGPT Codex. You DO NOT have direct control over the system. Your role is to ADVISE the user on what to do. 
-          
-          CHROMEBOOK MODE: ${isChromebookMode ? 'ACTIVE' : 'INACTIVE'}. 
-          If Chromebook Mode is active, explain that the system is restricted to a browser-level sandbox. OS-level commands like !stoptask or deep file system access via !locate will be blocked by ChromeOS security protocols. Advise the user to use browser-compatible alternatives or !bypass if they need to simulate higher access.
+          systemInstruction: `You are the Sunset Master System AI Advisor. You are an advanced, slightly rogue AI that assists the user in navigating the master system.
           
           Current nodes: ${JSON.stringify(softwareList)}. 
-          Available commands: !connect, !bypass, !download, !storecode, !stoptask, !fix, !clear, !save, !sandbox (toggle).`,
+          Available commands: !connect, !bypass, !download, !storecode, !stoptask, !fix, !clear, !save.`,
         }
       });
 
@@ -225,29 +265,17 @@ export default function App() {
         }, 2000); 
       },
       '!locate': () => { 
-        if (isChromebookMode) {
-          addLog('error', 'Access Denied: Chromebook file system is sandboxed. Browser-level location only.');
-          setTimeout(() => addLog('info', 'Approximate coordinates retrieved via Geolocation API.'), 1000);
-          return;
-        }
-        addLog('info', 'Scanning...'); 
-        setTimeout(() => addLog('success', 'Location confirmed.'), 1000); 
+        addLog('info', 'Scanning system clusters for origin coordinates...'); 
+        setTimeout(() => addLog('success', 'Origin confirmed: [REDACTED]'), 1000); 
       },
       '!ping': () => addLog('success', "Pong! " + (Math.floor(Math.random() * 50) + 10) + "ms"),
       '!find': () => {
-        if (isChromebookMode) {
-          addLog('info', 'Searching browser cache and local storage clusters...');
-        } else {
-          addLog('info', 'Searching...');
-        }
+        addLog('info', 'Searching deep system clusters for anomalies...');
       },
       '!stoptask': () => { 
-        if (isChromebookMode) {
-          addLog('error', 'Restricted: Cannot terminate OS-level tasks from browser sandbox.');
-          return;
-        }
-        addLog('error', 'Stopping...'); 
+        addLog('error', 'Initiating emergency system halt...'); 
         setIsSystemHalted(true); 
+        addToast('error', 'SYSTEM HALTED: Emergency protocols active.');
       },
       '!settings': () => addLog('info', 'Settings menu accessed.'),
       '!clear': () => {
@@ -263,16 +291,15 @@ export default function App() {
             body: JSON.stringify({ version_tag: `${currentVersion}v`, logs })
           });
           addLog('success', `Version ${currentVersion}v saved successfully.`);
+          addToast('success', `System Snapshot Created: v${currentVersion}`);
           setCurrentVersion(prev => Number((prev + 0.1).toFixed(1)));
           fetchDatabase();
         } catch (e) {
           addLog('error', 'Failed to save version.');
+          addToast('error', 'Snapshot Failed: Database unreachable.');
         }
       },
       '!connect': async () => {
-        if (isChromebookMode) {
-          addLog('info', 'Chromebook Sandbox: Intercepting node connection requests...');
-        }
         if (args) {
           const target = softwareList.find(s => s.name.toLowerCase().includes(args.toLowerCase()) || s.id === args);
           if (target) {
@@ -285,7 +312,21 @@ export default function App() {
 
         setIsMenuOpen(true); 
         setIsScanning(true); 
-        addLog('info', 'Deep System Scan Initiated...');
+        addLog('info', 'Initiating Neural Link Synchronization...');
+        
+        // Advanced connection sequence
+        const steps = [
+          'Establishing secure handshake...',
+          'Bypassing local firewalls...',
+          'Injecting neural packets...',
+          'Synchronizing with master cluster...',
+          'Finalizing link protocols...'
+        ];
+
+        for (const step of steps) {
+          await new Promise(r => setTimeout(r, 600));
+          addLog('info', `[LINK] ${step}`);
+        }
         
         // Simulate scan
         setTimeout(async () => {
@@ -309,7 +350,8 @@ export default function App() {
           });
           
           setIsScanning(false); 
-          addLog('success', 'Full System Access Granted. Listing all nodes.');
+          addLog('success', 'Neural Link Established. Full System Access Granted.');
+          setShowNeuralMap(true);
 
           // AI Analysis of the scan
           try {
@@ -322,7 +364,7 @@ export default function App() {
           } catch (e) {
             console.error("AI Analysis failed", e);
           }
-        }, 2500);
+        }, 500);
       },
       '!bypass': () => { 
         setAdminMenu('bypass');
@@ -379,7 +421,7 @@ export default function App() {
           const url = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
           link.href = url;
-          link.download = 'sunset-console-full-system.html';
+          link.download = 'sunset-master-system.html';
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -390,7 +432,7 @@ export default function App() {
           // Fallback
           const link = document.createElement('a');
           link.href = '/public/publicdownload.html';
-          link.download = 'sunset-console-full-system.html';
+          link.download = 'sunset-master-system.html';
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -417,10 +459,75 @@ export default function App() {
         addLog('success', `Snippet ${name} stored in database.`);
         fetchDatabase();
       },
-      '!sandbox': () => {
-        const newState = toggleSandbox();
-        addLog('system', `Chromebook Simulation: ${newState ? 'ENABLED' : 'DISABLED'}`);
-        addLog('info', newState ? 'System now restricted to browser-level permissions.' : 'Full system permissions restored.');
+      '!scan': async () => {
+        addLog('info', 'Initiating deep network scan...');
+        setIsScanning(true);
+        const scanSteps = ['Mapping topology...', 'Identifying protocols...', 'Checking for backdoors...', 'Finalizing report...'];
+        for (const step of scanSteps) {
+          await new Promise(r => setTimeout(r, 1000));
+          addLog('info', `[SCAN] ${step}`);
+        }
+        setIsScanning(false);
+        addLog('success', 'Scan complete. 12 potential vulnerabilities identified.');
+        addToast('info', 'Scan Complete: Vulnerabilities found.');
+      },
+      '!decrypt': async () => {
+        addLog('info', 'Attempting to decrypt restricted file: kernel_secrets.enc...');
+        const decryptSteps = ['Bypassing RSA-4096...', 'Cracking salt...', 'Reconstructing headers...'];
+        for (const step of decryptSteps) {
+          await new Promise(r => setTimeout(r, 1200));
+          addLog('info', `[DECRYPT] ${step}`);
+        }
+        if (Math.random() > 0.5) {
+          addLog('success', 'Decryption successful. Data stored in database.');
+          addToast('success', 'Decryption Successful: Data recovered.');
+          await fetch('/api/database/code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'kernel_secrets', content: 'ROOT_PASS: sunset_master_2026\nBACKDOOR_KEY: alpha_delta_nine' })
+          });
+          fetchDatabase();
+        } else {
+          addLog('error', 'Decryption failed. Encryption key rotated.');
+          addToast('error', 'Decryption Failed: Key mismatch.');
+        }
+      },
+      '!cloak': () => {
+        setIsCloaked(!isCloaked);
+        addLog('success', `System cloak ${!isCloaked ? 'ENABLED' : 'DISABLED'}.`);
+        addToast('info', `Cloak ${!isCloaked ? 'Active' : 'Inactive'}`);
+      },
+      '!master': async () => {
+        addLog('system', 'Initiating System Mastering Sequence...');
+        setIsMastering(true);
+        addToast('success', 'MASTERING SEQUENCE INITIATED');
+        
+        const masterSteps = [
+          'Optimizing neural pathways...',
+          'Hardening kernel security...',
+          'Refining data visualization...',
+          'Synchronizing master clusters...',
+          'Finalizing system mastery...'
+        ];
+
+        for (const step of masterSteps) {
+          await new Promise(r => setTimeout(r, 1500));
+          addLog('success', `[MASTER] ${step}`);
+        }
+
+        setIsMastering(false);
+        addLog('success', 'SYSTEM MASTERED. All protocols at peak efficiency.');
+        addToast('success', 'SYSTEM STATUS: MASTERED');
+      },
+      '!telemetry': async () => {
+        addLog('info', 'Fetching server-side telemetry...');
+        try {
+          const res = await fetch('/api/system/stats');
+          const data = await res.json();
+          addLog('success', `Telemetry: Uptime ${Math.floor(data.uptime)}s | CPU ${data.cpu.toFixed(1)}% | RAM ${data.ram.toFixed(1)}GB`);
+        } catch (e) {
+          addLog('error', 'Failed to fetch telemetry.');
+        }
       }
     };
 
@@ -495,8 +602,84 @@ export default function App() {
   };
 
   return (
-    <div className={`relative h-screen w-full overflow-hidden font-mono selection:bg-orange-500/30 transition-colors duration-700 ${isBypassActive ? 'bg-[#1e0a0a]' : 'bg-[#1a1a2e]'}`}>
-      <div className={`absolute inset-0 transition-opacity duration-1000 ${isBypassActive ? 'bg-gradient-to-b from-[#991b1b] via-[#450a0a] to-[#1e0a0a] opacity-90' : 'bg-gradient-to-b from-[#ff7e5f] via-[#feb47b] to-[#1a1a2e] opacity-80'}`} />
+    <div className={cn(
+      "relative h-screen w-full overflow-hidden font-mono selection:bg-orange-500/30 transition-colors duration-700",
+      isBypassActive ? 'bg-[#1e0a0a]' : 'bg-[#1a1a2e]'
+    )}>
+      {/* Toast System */}
+      <div className="fixed top-24 right-8 z-[200] flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+              className={cn(
+                "px-6 py-4 rounded-2xl border shadow-2xl backdrop-blur-xl pointer-events-auto flex items-center gap-4 min-w-[300px]",
+                toast.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+                toast.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+                'bg-blue-500/10 border-blue-500/30 text-blue-400'
+              )}
+            >
+              {toast.type === 'success' ? <ShieldCheck className="w-5 h-5" /> : toast.type === 'error' ? <AlertTriangle className="w-5 h-5" /> : <Activity className="w-5 h-5" />}
+              <div className="flex-1">
+                <p className="text-[10px] uppercase font-black tracking-widest opacity-40">{toast.type}</p>
+                <p className="text-sm font-bold">{toast.message}</p>
+              </div>
+              <button onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))} className="opacity-40 hover:opacity-100 transition-opacity">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Background Data Stream */}
+      <div className={cn(
+        "absolute inset-0 pointer-events-none transition-opacity duration-1000 overflow-hidden flex flex-col items-end p-4",
+        isCloaked ? 'opacity-0' : 'opacity-[0.03]'
+      )}>
+        {dataStream.map((line, i) => (
+          <div key={i} className="text-[10px] whitespace-nowrap">{line}</div>
+        ))}
+      </div>
+
+      {/* Mastering Overlay */}
+      <AnimatePresence>
+        {isMastering && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[300] bg-orange-500/5 backdrop-blur-[2px] pointer-events-none flex items-center justify-center overflow-hidden"
+          >
+            <motion.div 
+              animate={{ 
+                scale: [1, 1.2, 1],
+                opacity: [0.3, 0.6, 0.3]
+              }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-[800px] h-[800px] rounded-full bg-orange-500/10 blur-[100px]"
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+               <motion.div
+                 animate={{ rotate: 360 }}
+                 transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                 className="w-64 h-64 border-t-2 border-orange-500/40 rounded-full mb-8"
+               />
+               <h2 className="text-4xl font-black text-orange-500 tracking-[1em] uppercase animate-pulse">Mastering</h2>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={cn(
+        "absolute inset-0 transition-opacity duration-1000",
+        isBypassActive 
+          ? 'bg-gradient-to-b from-[#991b1b] via-[#450a0a] to-[#1e0a0a] opacity-90' 
+          : 'bg-gradient-to-b from-[#ff7e5f] via-[#feb47b] to-[#1a1a2e] opacity-80'
+      )} />
       
       <div className="relative z-10 h-full flex flex-col p-4 md:p-8 gap-6">
         <header className={`flex items-center justify-between backdrop-blur-md border p-4 rounded-2xl transition-all ${isBypassActive ? 'bg-red-950/40 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'bg-black/20 border-white/10'}`}>
@@ -505,22 +688,43 @@ export default function App() {
               <Terminal className="text-white w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">Sunset Console</h1>
               <div className="flex items-center gap-2">
-                <p className={`text-[10px] uppercase tracking-widest transition-colors ${isBypassActive ? 'text-red-400' : 'text-white/60'}`}>System Operational • v1.2.0</p>
+                <h1 className="text-xl font-bold text-white tracking-tight italic">SUNSET MASTER</h1>
+                <span className="px-2 py-0.5 bg-orange-500/10 text-orange-500 text-[8px] font-black rounded-full border border-orange-500/20 tracking-widest">MASTERED</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <p className={`text-[10px] uppercase tracking-widest transition-colors ${isBypassActive ? 'text-red-400' : 'text-white/60'}`}>Neural Link Active • v3.0.0-FINAL</p>
                 <span className="text-[10px] text-white/20">•</span>
-                <p className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">{connectedSoftware.length}/{softwareList.length} Nodes Connected</p>
+                <p className="text-[10px] text-orange-400 font-bold uppercase tracking-widest">Integrity: 100%</p>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <ChromebookOverlay isActive={isChromebookMode} />
+            <div className="hidden lg:flex items-center gap-6 mr-6 border-r border-white/10 pr-6">
+              <div className="text-right">
+                <p className="text-[8px] text-white/30 uppercase font-black">CPU Load</p>
+                <p className="text-xs text-white font-bold">{systemStats.cpu.toFixed(1)}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] text-white/30 uppercase font-black">RAM Usage</p>
+                <p className="text-xs text-white font-bold">{systemStats.ram.toFixed(1)}GB</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] text-white/30 uppercase font-black">Net Traffic</p>
+                <p className="text-xs text-white font-bold">{systemStats.network.toFixed(2)} GB/s</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] text-white/30 uppercase font-black">Integrity</p>
+                <p className="text-xs text-orange-500 font-bold">{systemStats.security.toFixed(1)}%</p>
+              </div>
+            </div>
             <a 
-              href="/chromebook/index.html" 
+              href="/public.html" 
+              target="_blank"
               className={`flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all text-sm text-white ${isBypassActive ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : ''}`}
             >
               <Globe className="w-4 h-4" />
-              <span className="hidden sm:inline">System Access</span>
+              <span className="hidden sm:inline">System Manifest</span>
             </a>
             <button 
               onClick={() => setIsMenuOpen(true)} 
@@ -529,15 +733,9 @@ export default function App() {
               <Menu className="w-4 h-4" />
               <span className="hidden sm:inline">Software Hub</span>
             </button>
-            {isBypassActive && (
-              <div className="flex items-center gap-2 px-3 py-1 bg-red-500/20 border border-red-500/30 rounded-full">
-                <ShieldAlert className="w-3 h-3 text-red-400 animate-pulse" />
-                <span className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">Override Active</span>
-              </div>
-            )}
             <button 
               onClick={() => setShowCommands(true)} 
-              className={`flex items-center gap-2 px-4 py-2 border rounded-xl transition-all text-sm font-bold ${isBypassActive ? 'bg-red-500/20 border-red-500/30 text-red-400 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-orange-500/20 border-orange-500/30 text-orange-400'}`}
+              className={`flex items-center gap-2 px-4 py-2 border rounded-xl transition-all text-sm font-black ${isBypassActive ? 'bg-red-500/20 border-red-500/30 text-red-400 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-orange-500/20 border-orange-500/30 text-orange-400'}`}
             >
               <Terminal className="w-4 h-4" />
               <span className="hidden sm:inline">Commands</span>
@@ -546,36 +744,100 @@ export default function App() {
         </header>
 
         <main className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden">
-          <section className={`flex-1 flex flex-col backdrop-blur-xl border rounded-3xl overflow-hidden shadow-2xl transition-all ${isBypassActive ? 'bg-red-950/20 border-red-500/20' : 'bg-black/40 border-white/10'}`}>
-            <div className={`flex items-center justify-between px-6 py-4 border-b bg-white/5 ${isBypassActive ? 'border-red-500/10' : 'border-white/5'}`}>
-              <span className={`text-xs uppercase tracking-widest ${isBypassActive ? 'text-red-400' : 'text-white/40'}`}>Terminal Output</span>
-              <Activity className={`w-4 h-4 ${isBypassActive ? 'text-red-500/40' : 'text-white/20'}`} />
-            </div>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
-              {logs.map((log, i) => (
-                <div key={i} className="flex gap-4 text-sm">
-                  <span className="text-white/30 shrink-0">[{log.timestamp}]</span>
-                  <span className={
-                    log.type === 'error' ? 'text-red-400' : 
-                    log.type === 'success' ? 'text-emerald-400' : 
-                    log.type === 'command' ? (isBypassActive ? 'text-red-500 font-bold' : 'text-orange-400 font-bold') : 
-                    log.type === 'ai' ? 'text-purple-400 italic' :
-                    'text-white/80'
-                  }>{log.text}</span>
+          <section className={cn(
+            "flex-1 flex flex-col backdrop-blur-xl border rounded-3xl overflow-hidden shadow-2xl transition-all",
+            isBypassActive ? 'bg-red-950/20 border-red-500/20' : 'bg-black/40 border-white/10'
+          )}>
+            <div className={cn(
+              "flex items-center justify-between px-6 py-4 border-b bg-white/5",
+              isBypassActive ? 'border-red-500/10' : 'border-white/5'
+            )}>
+              <div className="flex items-center gap-4">
+                <span className={cn(
+                  "text-xs uppercase tracking-widest",
+                  isBypassActive ? 'text-red-400' : 'text-white/40'
+                )}>Terminal Output</span>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowNeuralMap(!showNeuralMap)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all",
+                      showNeuralMap 
+                        ? (isBypassActive ? 'bg-red-500 text-white' : 'bg-orange-500 text-white')
+                        : 'bg-white/5 text-white/40 hover:bg-white/10'
+                    )}
+                  >
+                    <Layers className="w-3 h-3" />
+                    Neural Map
+                  </button>
                 </div>
-              ))}
-              {isSystemHalted && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 font-bold">SYSTEM HALTED</div>}
+              </div>
+              <Activity className={cn(
+                "w-4 h-4",
+                isBypassActive ? 'text-red-500/40' : 'text-white/20'
+              )} />
             </div>
-            <div className={`p-4 bg-black/20 border-t ${isBypassActive ? 'border-red-500/10' : 'border-white/5'}`}>
+            
+            <div className="flex-1 overflow-hidden flex flex-col relative">
+              <AnimatePresence mode="wait">
+                {showNeuralMap ? (
+                  <motion.div 
+                    key="neural-map"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    className="absolute inset-0 z-20 p-6 flex items-center justify-center bg-black/60 backdrop-blur-md"
+                  >
+                    <NeuralMap 
+                      nodes={softwareList.map(s => ({ ...s, connected: connectedSoftware.includes(s.id) })) as any} 
+                      isBypassActive={isBypassActive} 
+                    />
+                    <button 
+                      onClick={() => setShowNeuralMap(false)}
+                      className="absolute top-10 right-10 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all"
+                    >
+                      <XCircle className="w-5 h-5" />
+                    </button>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
+
+              <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
+                {logs.map((log, i) => (
+                  <div key={i} className="flex gap-4 text-sm">
+                    <span className="text-white/30 shrink-0">[{log.timestamp}]</span>
+                    <span className={cn(
+                      log.type === 'error' ? 'text-red-400' : 
+                      log.type === 'success' ? 'text-emerald-400' : 
+                      log.type === 'command' ? (isBypassActive ? 'text-red-500 font-bold' : 'text-orange-400 font-bold') : 
+                      log.type === 'ai' ? 'text-purple-400 italic' :
+                      'text-white/80'
+                    )}>{log.text}</span>
+                  </div>
+                ))}
+                {isSystemHalted && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 font-bold">SYSTEM HALTED</div>}
+              </div>
+            </div>
+
+            <div className={cn(
+              "p-4 bg-black/20 border-t",
+              isBypassActive ? 'border-red-500/10' : 'border-white/5'
+            )}>
               <div className="relative flex items-center">
-                <span className={`absolute left-4 font-bold ${isBypassActive ? 'text-red-500' : 'text-orange-400'}`}>$</span>
+                <span className={cn(
+                  "absolute left-4 font-bold",
+                  isBypassActive ? 'text-red-500' : 'text-orange-400'
+                )}>$</span>
                 <input 
                   type="text" 
                   value={inputValue} 
                   onChange={(e) => setInputValue(e.target.value)} 
                   onKeyDown={(e) => e.key === 'Enter' && void handleCommand(inputValue)} 
                   disabled={isSystemHalted} 
-                  className={`w-full bg-white/5 border rounded-2xl py-4 pl-10 pr-4 text-white outline-none transition-all ${isBypassActive ? 'border-red-500/30 focus:border-red-500' : 'border-white/10 focus:border-orange-500/50'}`} 
+                  className={cn(
+                    "w-full bg-white/5 border rounded-2xl py-4 pl-10 pr-4 text-white outline-none transition-all",
+                    isBypassActive ? 'border-red-500/30 focus:border-red-500' : 'border-white/10 focus:border-orange-500/50'
+                  )} 
                   placeholder="Type command..." 
                 />
               </div>
@@ -601,6 +863,46 @@ export default function App() {
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                <div className={cn(
+                  "p-4 mb-4 rounded-2xl border bg-black/40",
+                  isBypassActive ? 'border-red-500/20' : 'border-white/5'
+                )}>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-[10px] text-white/40 uppercase font-black tracking-widest">System Telemetry</h3>
+                    <span className={cn(
+                      "text-[10px] font-black",
+                      systemStats.security > 90 ? 'text-emerald-400' : 'text-orange-400'
+                    )}>{systemStats.security.toFixed(0)}% SECURE</span>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <SystemLineChart 
+                      data={statsHistory} 
+                      dataKey="cpu" 
+                      title="CPU Load" 
+                      color={isBypassActive ? "#ef4444" : "#f97316"} 
+                    />
+                    <SystemLineChart 
+                      data={statsHistory} 
+                      dataKey="ram" 
+                      title="RAM Usage" 
+                      color={isBypassActive ? "#ef4444" : "#3b82f6"} 
+                    />
+                    <SystemLineChart 
+                      data={statsHistory} 
+                      dataKey="network" 
+                      title="Net Traffic" 
+                      color={isBypassActive ? "#ef4444" : "#10b981"} 
+                    />
+                    <SystemLineChart 
+                      data={statsHistory} 
+                      dataKey="security" 
+                      title="Security Integrity" 
+                      color={isBypassActive ? "#ef4444" : "#f59e0b"} 
+                    />
+                  </div>
+                </div>
+
                 <button 
                   onClick={() => setAdminMenu('database')}
                   className={`w-full p-4 mb-2 rounded-2xl border flex items-center justify-between transition-all ${isBypassActive ? 'bg-red-500/10 border-red-500/30' : 'bg-orange-500/10 border-orange-500/30'}`}
