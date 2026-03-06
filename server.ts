@@ -317,6 +317,17 @@ async function startServer() {
     res.send(generateManifestHtml());
   });
 
+  // Standalone download portal route
+  app.get(["/download", "/download.html"], (req, res) => {
+    const downloadPagePath = path.join(__dirname, "download.html");
+
+    if (!fs.existsSync(downloadPagePath)) {
+      return res.status(404).send("download.html was not found on the server.");
+    }
+
+    return res.sendFile(downloadPagePath);
+  });
+
   // public/publicdownload.html Route - Forces Download
   app.get("/public/publicdownload.html", (req, res) => {
     try {
