@@ -278,11 +278,23 @@ async function startServer() {
     res.send(generateManifestHtml());
   });
 
-  // index24.html Route
+  // index24.html Route - Injects manifest data
   app.get("/index24.html", (req, res) => {
     const filePath = path.join(__dirname, "index24.html");
     if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
+      let content = fs.readFileSync(filePath, "utf-8");
+      const manifestHtml = generateManifestHtml();
+      
+      // Inject the manifest as a hidden data attribute or a script variable
+      // This allows the "Download System" button to work offline by creating a blob
+      const escapedManifest = Buffer.from(manifestHtml).toString('base64');
+      
+      content = content.replace(
+        '</body>',
+        `<script>window.__SYSTEM_MANIFEST__ = "${escapedManifest}";</script></body>`
+      );
+      
+      res.send(content);
     } else {
       res.status(404).send("index24.html not found");
     }

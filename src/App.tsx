@@ -336,17 +336,31 @@ export default function App() {
           fetchDatabase();
         }
       },
-      '!downloadsystem': () => {
+      '!downloadsystem': async () => {
         addLog('info', 'Preparing full system manifest for download...');
-        setTimeout(() => {
+        try {
+          const response = await fetch('/public/publicdownload.html');
+          if (!response.ok) throw new Error('Network response was not ok');
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'sunset-console-full-system.html';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          addLog('success', 'Full system download triggered successfully.');
+        } catch (error) {
+          addLog('error', 'Failed to prepare system download. Server link may be restricted.');
+          // Fallback
           const link = document.createElement('a');
           link.href = '/public/publicdownload.html';
           link.download = 'sunset-console-full-system.html';
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
-          addLog('success', 'Full system download triggered.');
-        }, 1500);
+        }
       },
       '!storecode': async () => {
         if (!args) {
@@ -704,10 +718,33 @@ export default function App() {
                         {dbData.snippets.map(s => (
                           <div key={s.id} className="p-4 bg-white/5 border border-white/5 rounded-2xl">
                             <div className="flex justify-between items-center mb-2">
-                              <span className="text-orange-400 font-bold text-xs">{s.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-orange-400 font-bold text-xs">{s.name}</span>
+                                <button 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(s.content);
+                                    addLog('success', `Copied snippet: ${s.name}`);
+                                  }}
+                                  className="p-1 hover:bg-white/10 rounded transition-colors text-white/40 hover:text-white"
+                                  title="Copy to clipboard"
+                                >
+                                  <FileCode className="w-3 h-3" />
+                                </button>
+                              </div>
                               <span className="text-[10px] text-white/20">{new Date(s.timestamp).toLocaleString()}</span>
                             </div>
-                            <pre className="text-[10px] text-white/60 bg-black/40 p-3 rounded-xl overflow-x-auto"><code>{s.content}</code></pre>
+                            <pre className="text-[10px] text-white/60 bg-black/40 p-3 rounded-xl overflow-x-auto relative group">
+                              <code>{s.content}</code>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(s.content);
+                                  addLog('success', `Copied snippet: ${s.name}`);
+                                }}
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 bg-orange-500 text-white px-2 py-1 rounded text-[8px] font-bold uppercase transition-opacity"
+                              >
+                                Copy
+                              </button>
+                            </pre>
                           </div>
                         ))}
                       </div>
@@ -739,28 +776,49 @@ export default function App() {
                   </div>
                 ) : adminMenu === 'versions' ? (
                   <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar">
+                    <div className="mb-4 p-4 bg-purple-500/10 border border-purple-500/20 rounded-2xl">
+                      <h3 className="text-white font-bold text-sm mb-1">Active Version: {currentVersion}v</h3>
+                      <p className="text-[10px] text-white/40 uppercase">Select a snapshot to restore or switch system state.</p>
+                    </div>
                     {dbData.versions.length === 0 && <p className="text-white/20 text-xs italic">No system snapshots found.</p>}
                     {dbData.versions.map(v => (
-                      <div key={v.id} className="p-4 bg-white/5 border border-white/5 rounded-2xl flex justify-between items-center">
+                      <div 
+                        key={v.id} 
+                        onClick={() => {
+                          const vNum = parseFloat(v.version_tag);
+                          if (!isNaN(vNum)) setCurrentVersion(vNum);
+                          addLog('system', `System transitioned to ${v.version_tag}`);
+                          setAdminMenu('none');
+                        }}
+                        className={`p-4 bg-white/5 border transition-all cursor-pointer hover:border-purple-500/50 rounded-2xl flex justify-between items-center ${currentVersion + 'v' === v.version_tag ? 'border-purple-500/50 bg-purple-500/5' : 'border-white/5'}`}
+                      >
                         <div>
                           <h4 className="text-purple-400 font-bold text-sm">{v.version_tag}</h4>
                           <p className="text-[10px] text-white/40">{new Date(v.timestamp).toLocaleString()}</p>
                         </div>
-                        <button 
-                          onClick={() => {
-                            try {
-                              const restoredLogs = JSON.parse(v.logs);
-                              setLogs(restoredLogs);
-                              addLog('success', `Restored logs from ${v.version_tag}`);
-                              setAdminMenu('none');
-                            } catch (e) {
-                              addLog('error', 'Failed to restore logs.');
-                            }
-                          }}
-                          className="px-3 py-1 bg-purple-600/20 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase rounded-full hover:bg-purple-600/40 transition-all"
-                        >
-                          Restore Logs
-                        </button>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              try {
+                                const restoredLogs = JSON.parse(v.logs);
+                                setLogs(restoredLogs);
+                                addLog('success', `Restored logs from ${v.version_tag}`);
+                                setAdminMenu('none');
+                              } catch (e) {
+                                addLog('error', 'Failed to restore logs.');
+                              }
+                            }}
+                            className="px-3 py-1 bg-purple-600/20 border border-purple-500/30 text-purple-400 text-[10px] font-bold uppercase rounded-full hover:bg-purple-600/40 transition-all"
+                          >
+                            Restore Logs
+                          </button>
+                          <button 
+                            className="px-3 py-1 bg-white/5 border border-white/10 text-white/40 text-[10px] font-bold uppercase rounded-full hover:text-white transition-all"
+                          >
+                            Switch to
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

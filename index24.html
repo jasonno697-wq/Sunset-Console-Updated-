@@ -76,9 +76,22 @@
             <a href="/" class="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-2xl transition-all shadow-lg shadow-orange-500/20 uppercase tracking-widest text-sm">
                 Enter Console
             </a>
-            <a href="/public/publicdownload.html" class="w-full py-4 bg-white/5 hover:bg-white/10 text-white/60 font-bold rounded-2xl transition-all border border-white/10 uppercase tracking-widest text-sm">
+            <button id="downloadBtn" class="w-full py-4 bg-white/5 hover:bg-white/10 text-white/60 font-bold rounded-2xl transition-all border border-white/10 uppercase tracking-widest text-sm">
                 Download System
-            </a>
+            </button>
+            <button id="viewManifestBtn" class="w-full py-2 text-white/20 hover:text-white/40 text-[10px] uppercase tracking-widest font-bold transition-all">
+                View System Manifest
+            </button>
+        </div>
+
+        <div id="manifestSection" class="hidden text-left space-y-4 pt-8 border-t border-white/5">
+            <h2 class="text-white font-bold text-sm uppercase tracking-widest flex items-center gap-2">
+                <span class="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+                System Source Code
+            </h2>
+            <div id="manifestContent" class="max-h-64 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                <p class="text-white/40 text-[10px] italic">Loading system source blocks...</p>
+            </div>
         </div>
 
         <p class="text-[10px] text-white/20 uppercase font-bold tracking-widest">
@@ -87,6 +100,7 @@
     </div>
 
     <script>
+        // Matrix Background
         const matrix = document.getElementById('matrix');
         const chars = '0123456789ABCDEF';
         const rows = 50;
@@ -109,12 +123,64 @@
         setInterval(() => {
             const spans = matrix.getElementsByTagName('span');
             const randomIdx = Math.floor(Math.random() * spans.length);
-            spans[randomIdx].innerText = chars[Math.floor(Math.random() * chars.length)];
-            spans[randomIdx].style.color = '#f97316';
-            setTimeout(() => {
-                spans[randomIdx].style.color = '';
-            }, 500);
+            if (spans[randomIdx]) {
+                spans[randomIdx].innerText = chars[Math.floor(Math.random() * chars.length)];
+                spans[randomIdx].style.color = '#f97316';
+                setTimeout(() => {
+                    spans[randomIdx].style.color = '';
+                }, 500);
+            }
         }, 50);
+
+        // Download Logic
+        const downloadBtn = document.getElementById('downloadBtn');
+        downloadBtn.addEventListener('click', () => {
+            if (window.__SYSTEM_MANIFEST__) {
+                const binaryString = atob(window.__SYSTEM_MANIFEST__);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sunset-console-full-system.html';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                // Fallback to server route if not injected
+                window.location.href = '/public/publicdownload.html';
+            }
+        });
+
+        // Manifest Viewer Logic
+        const viewManifestBtn = document.getElementById('viewManifestBtn');
+        const manifestSection = document.getElementById('manifestSection');
+        const manifestContent = document.getElementById('manifestContent');
+
+        viewManifestBtn.addEventListener('click', () => {
+            manifestSection.classList.toggle('hidden');
+            if (!manifestSection.classList.contains('hidden') && window.__SYSTEM_MANIFEST__) {
+                const html = atob(window.__SYSTEM_MANIFEST__);
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const codeBlocks = doc.querySelectorAll('section.glass > div.space-y-4');
+                
+                manifestContent.innerHTML = '';
+                codeBlocks.forEach(block => {
+                    const clone = block.cloneNode(true);
+                    // Style the cloned block for index24
+                    const h3 = clone.querySelector('h3');
+                    if (h3) h3.className = "text-white/60 text-[10px] font-bold uppercase tracking-widest mb-2";
+                    const pre = clone.querySelector('pre');
+                    if (pre) pre.className = "bg-black/60 p-4 rounded-xl border border-white/5 overflow-x-auto text-[10px] text-white/40";
+                    manifestContent.appendChild(clone);
+                });
+            }
+        });
     </script>
 </body>
 </html>
